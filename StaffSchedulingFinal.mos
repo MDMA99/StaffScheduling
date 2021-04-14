@@ -1,0 +1,93 @@
+!@encoding CP1252
+MODEL ExampleTest
+
+	USES "mmxprs"; !gain access to the Xpress-Optimizer solver
+	
+	!Declarations section
+	DECLARATIONS 
+		nCostFull = 84
+		nCostPart = 30
+		mPeriods = 9..16
+		!A Full-timer can only start at either 9 or 10
+		mFullStart = 9..10
+		!A Part-timer can only start at either 9, 10, 11, 12 or 13
+		mPartStart = 9..13
+		!Number of required staff for each period (data array)
+		mReqStaff: array(mPeriods) OF INTEGER
+		!Number of Full-timers
+		nFull: array(mFullStart) OF MPVAR
+		!Number of Part-timers
+		nPart: array(mPartStart) OF MPVAR
+	END-DECLARATIONS
+	
+	!Required number of staff for each period:
+	mReqStaff :: [6, 5, 7, 8, 8, 7, 5, 6]
+	
+	!nFull: Full-time (6hrs + 1):(£12/h), nPart: Part-time (4hrs):(£7.50/h)
+	mTotCost:= nCostFull*SUM(i in mFullStart)nFull(i) + nCostPart*SUM(i in mPartStart)nPart(i)
+	
+	!Constraints
+	!If FT workers are X1(@9am) and X2(@10am)
+	!If PT workers are X3..X7 for 9am..1pm
+	!Consider number of workers starting at each period
+	!No new PT workers after 1pm
+	
+	!Then the constraints should be:
+	!9: X1 + X3 >= 6
+	!10: X1 + X2 + X3 + X4 >= 5
+	!11: X1 + X3 + X3 + X4 + X5 >= 7
+	!12: X1 take a break after 3hrs work - X2 + X3 + X4 + X5 + X6 >= 8
+	!13: X2 take a break after 3hrs work, X3 finished work - X1 + X4 + X5 + X6 + X7 >= 8
+	!14: X1 + X2 + X5 + X6 + X7 >= 7
+	!15: X1 + X2 + X6 + X7 >= 6
+	!16: X2 + X7 >= 6, FT @ 10am and PT @ 1pm should be the last ones
+	
+	!State machine based on each period
+	FORALL(i in mPeriods) DO
+		IF(i = 9) THEN
+			!FT @ 9 + PT @ 9 
+			Constraints(i):= nFull(i) + nPart(i) >= mReqStaff(i)
+		ELIF(i = 10 OR i = 11) THEN
+			!All FT + PT @ 9 and 10 OR PT @ 9, 10 and 11
+			Constraints(i):= SUM(j in mFullStart)nFull(j) + SUM(k in mPartStart | k < (i + 1))nPart(k) >= mReqStaff(i)
+		ELIF(i = 12) THEN
+			!FT @ 10 + PT @ 9 - 12
+			Constraints(i):= nFull(i - 2) + SUM(k in mPartStart | k < (i + 1))nPart(k) >= mReqStaff(i)
+		ELIF(i = 13) THEN
+			!FT @ 9 + PT @ 10 - 13
+			Constraints(i):= nFull(i - 4) + SUM(k in mPartStart | k > (i - 4))nPart(k) >= mReqStaff(i)
+		ELIF(i = 14 OR i = 15) THEN	
+			!All FT + PT @ 11 - 13 OR 12 - 13
+			Constraints(i):= SUM(j in mFullStart)nFull(j) + SUM(k in mPartStart | k > (i - 4))nPart(k) >= mReqStaff(i)
+		ELIF(i = 16) THEN
+			!FT @ 10 + PT @ 13
+			Constraints(i):= nFull(i - 6) + nPart(i - 3) >= mReqStaff(i)
+		END-IF	
+	END-DO
+	
+	!Require at least 4 Full-time workers
+	minFullTime:= SUM(i in mFullStart) nFull(i) >= 4
+	
+	!Minimize cost
+	minimize(mTotCost)
+	
+	write("Problem status: ")
+	CASE getprobstat OF
+		XPRS_OPT:
+			writeln("Optimum found")
+		XPRS_UNF:
+			writeln("Unfinished")
+		XPRS_INF:
+			writeln("Infeasible")
+		XPRS_UNB:
+			writeln("Unbounded")
+		XPRS_OTH:
+			writeln("Failed")
+	END-CASE
+
+	!Print to console
+	writeln("Total Labour cost is ", getobjval)
+	writeln("Number of Part-time employees: ", getsol(SUM(i in mPartStart)nPart(i)))
+	writeln("Number of Full-time employees: ", getsol(SUM(i in mFullStart)nFull(i)))
+	
+END-MODEL

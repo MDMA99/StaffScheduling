@@ -1,0 +1,77 @@
+!@encoding CP1252
+MODEL ExampleTest
+
+	USES "mmxprs"; !gain access to the Xpress-Optimizer solver
+	
+	!Declarations section
+	DECLARATIONS 
+		nCostFull = 84
+		nCostPart = 30
+		mPeriods = 9..16
+		!A Full-timer can only start at either 9 or 10
+		mFullStart = 9..10
+		!A Part-timer can only start at either 9, 10, 11, 12 or 13
+		mPartStart = 9..13
+		!Number of required staff for each period (data array)
+		mReqStaff: array(mPeriods) OF INTEGER
+		!Number of Full-timers
+		nFull: array(mFullStart) OF MPVAR
+		!Number of Part-timers
+		nPart: array(mPartStart) OF MPVAR
+	END-DECLARATIONS
+	
+	!Required number of staff for each period:
+	mReqStaff :: [6, 5, 7, 8, 8, 7, 5, 6]
+	
+	!nFull: Full-time (6hrs + 1):(£12/h), nPart: Part-time (4hrs):(£7.50/h)
+	mTotCost:= nCostFull*SUM(i in mFullStart)nFull(i) + nCostPart*SUM(i in mPartStart)nPart(i)
+	
+	!Constraints
+	!Fullfil number of workers at each time period
+	FORALL(i in mPeriods) DO
+		CASE i OF
+			9:
+				Constraints(i):= nFull(i) + nPart(i) >= mReqStaff(i)
+			10:
+				Constraints(i):= SUM(j in mFullStart)nFull(j) + SUM(k in mPartStart | k < 11)nPart(k) >= mReqStaff(i)
+			11:
+				Constraints(i):= SUM(j in mFullStart)nFull(j) + SUM(k in mPartStart | k < 12)nPart(k) >= mReqStaff(i)
+			12:
+				Constraints(i):= nFull(10) + SUM(k in mPartStart | k < 13)nPart(k) >= mReqStaff(i)
+			13:
+				Constraints(i):= nFull(9) + SUM(k in mPartStart | k > 9)nPart(k) >= mReqStaff(i)
+			14:
+				Constraints(i):= SUM(j in mFullStart)nFull(j) + SUM(k in mPartStart | k > 10)nPart(k) >= mReqStaff(i)
+			15:
+				Constraints(i):= SUM(j in mFullStart)nFull(j) + SUM(k in mPartStart | k > 11)nPart(k) >= mReqStaff(i)	
+			16: 
+				Constraints(i):= nFull(10) + nPart(13) >= mReqStaff(i)
+		END-CASE	
+	END-DO
+	
+	!Require at least 4 Full-time workers
+	minFullTime:= SUM(i in mFullStart) nFull(i) >= 4
+	
+	!Minimize cost
+	minimize(mTotCost)
+	
+	write("Problem status: ")
+	CASE getprobstat OF
+		XPRS_OPT:
+			writeln("Optimum found")
+		XPRS_UNF:
+			writeln("Unfinished")
+		XPRS_INF:
+			writeln("Infeasible")
+		XPRS_UNB:
+			writeln("Unbounded")
+		XPRS_OTH:
+			writeln("Failed")
+	END-CASE
+
+	!Print to console
+	writeln("Total Labour cost is ", getobjval)
+	writeln("Number of Part-time employees: ", getsol(SUM(i in mPartStart)nPart(i)))
+	writeln("Number of Full-time employees: ", getsol(SUM(i in mFullStart)nFull(i)))
+	
+END-MODEL

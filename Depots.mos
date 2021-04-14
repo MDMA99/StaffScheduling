@@ -1,0 +1,44 @@
+!@encoding CP1252
+MODEL Depots
+
+	USES "mmxprs"; !gain access to the Xpress-Optimizer solver
+	
+	!Optional parameters section
+	PARAMETERS
+	!  SAMPLEPARAM1='c:\test\'
+	!  SAMPLEPARAM2=false
+	   PROJECTDIR='' ! for when file is added to project
+	END-PARAMETERS
+	
+	!Declarations section
+	DECLARATIONS
+		depots = 1..2
+		customers = 1..3
+		supply: array(depots) OF REAL
+		demand: array(customers) OF REAL
+		cost: array(depots, customers) OF REAL
+		x: array(depots, customers) OF MPVAR 
+	END-DECLARATIONS
+	
+	supply :: [12,16]
+	demand :: [9,7,8]
+	cost :: [5,4,6,4,8,7]
+	totcost:= SUM(i in depots, j in customers) cost(i,j)*x(i,j)
+	
+	FORALL(i in depots) DO
+		sup(i):= SUM(j in customers) x(i,j) <= supply(i)
+	END-DO
+	
+	FORALL(j in customers) DO
+		dem(j):= SUM(i in depots) x(i,j) >= demand(j)
+	END-DO
+	
+	minimize(totcost)
+	writeln("Cost is ",getobjval)
+	writeln("Transportation scheme:")
+	
+	FORALL(i in depots) DO
+		writeln(getsol(x(i,1)),"; ",getsol(x(i,2)),"; ",getsol(x(i,3)))
+	END-DO
+	
+END-MODEL

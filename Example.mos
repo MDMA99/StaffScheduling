@@ -1,0 +1,36 @@
+!@encoding CP1252
+MODEL ExampleTest
+
+	USES "mmxprs"; !gain access to the Xpress-Optimizer solver
+	
+	!Optional parameters section
+	PARAMETERS
+	!  SAMPLEPARAM1='c:\test\'
+	!  SAMPLEPARAM2=false
+	   PROJECTDIR='' ! for when file is added to project
+	END-PARAMETERS
+	
+	!Declarations section
+	DECLARATIONS 
+		x,y: MPVAR
+	END-DECLARATIONS
+	
+	!declarations
+	! ...
+	!  Objective:linctr
+	!end-declarations
+	
+	IF PROJECTDIR <> '' THEN
+	  setparam('workdir', PROJECTDIR)
+	  writeln("Project directory: " + PROJECTDIR)
+	END-IF
+	
+	profit:= 500*x+300*y
+	UBx:= x<=60
+	UBy:= y<=50
+	constraint:= 2*x+y<=125
+	maximize(profit)
+	writeln("Profit is ",getobjval)
+	writeln("x = ",getsol(x),"; y = ",getsol(y))
+	
+END-MODEL
